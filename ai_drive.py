@@ -184,6 +184,12 @@ def generate_line_from_two_points(p1, p2):
 
 class Car(object):
     def __init__(self, pos, ray_count, angle, id):
+        #TODO previous generation best cars should be red
+        # red cars -> previous generation best cars (of course they are crossover-ed
+        # blue cars -> randomly chosen from the previous generation
+        # green cars -> randomly mutation ???
+        # yellow cars -> ???
+        # TODO review the lecture
         self.image_id = randint(0, len(car_images)-1)
         self.image = car_images[self.image_id]
         self.fitness_id = id
@@ -378,14 +384,19 @@ def generate_ui():
 
 
 def main(genomes, config):
+    #GLOBAL VARIABLES
     global show_rays, show_collision_lines, mouse_pos, camera_on, camera_pos, testing, testing_flag, record_time
     global generation_count, last_gen_best_time, show_stats, show_graph, paused, pause_screen_drawn
 
+    #TIME COUNTER
     start_time = time.time()
     adjusted_current_time = time.time()
+
+    #OTHER COUNTER and CONFIGURATIONS
     generation_count += 1
     all_prev_fitness_avg.append(0)
 
+    #INITIALIZATION
     nets = []
     ge = []
     cars = []
@@ -393,11 +404,20 @@ def main(genomes, config):
     winner_cars_finish_times = []
     all_fitness_values = []
 
+    #The population as a list of (genome id, genome) tuples.
+    #Genomes list is a list of car population
+    #If the population size is 25, genomes has 25 neat.genome.DefaultGenome object
     for i, g in genomes:
+        #NEAT STUFF
         net = neat.nn.FeedForwardNetwork.create(g, config)
         nets.append(net)
+
+        #CAR ATTRIBUTES
         start_angle = 180 if testing else 0
-        cars.append(Car((540-randint(0, 40), 870-randint(0, 40)), 8, start_angle, (i-1)%25))
+        #           Car( pos, ray_count, angle, id )
+        cars.append(Car((540-randint(0, 40), 870-randint(0, 40)), 8, start_angle, (i-1) % len(genomes)))
+
+        #OTHER ATTRIBUTES
         g.fitness = 0
         all_fitness_values.append(0)
         ge.append(g)
@@ -420,6 +440,8 @@ def main(genomes, config):
     while program:
         delta_time = clock.tick(FPS)/1000.0
         if not paused: adjusted_current_time += delta_time
+
+        #INPUT HANDLING
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 program = False
@@ -463,7 +485,7 @@ def main(genomes, config):
 
             ui_manager.process_events(event)
 
-        keys = pg.key.get_pressed()
+        #keys = pg.key.get_pressed()
 
         ui_manager.update(delta_time)
 
@@ -473,32 +495,41 @@ def main(genomes, config):
 
             canvas.blit(istanbul_park, (0, 0))
 
+            #TODO interface button to do this
             if show_collision_lines:
                 for line in map:
                     line.draw(canvas)
 
             if len(cars) > 0:
-
+                #IS EVERYONE WON THE GAME?
                 everyone_won = True
                 for car in cars:
                     if not car.has_won:
                         everyone_won = False
 
+                #IF EVERYONE WON, THEN THE GENERATION FINISHED
                 if everyone_won:
                     for car in cars:
                         car.alive = False
 
+                #CAR ITERATION
                 for i, car in enumerate(cars):
                     car.move_forward()
                     alive = car.draw(canvas, map)
+
+                    #IF IT DIES, -3 FITNESS
                     if not alive:
+                        # TODO fitness değişebilir
                         ge[i].fitness -= 3
                         cars.pop(i)
                         nets.pop(i)
                         ge.pop(i)
                     else:
-                        ge[i].fitness += 0.1
+                        #TODO fitness değişebilir
+                        ge[i].fitness += 0.1 #GIVE FITNESS POINT EVERY FRAME THAT LIVES
                         all_fitness_values[car.fitness_id] = ge[i].fitness
+
+                        #CHECK FOR WINNERS
                         if (adjusted_current_time - start_time) > 5.0:
                             if not car.has_won:
                                 car.check_for_win(finish_line)
@@ -511,6 +542,8 @@ def main(genomes, config):
                                     elif record_time > winner_cars_finish_times[0]:
                                         record_time = winner_cars_finish_times[0]
                                     index = winner_cars.index(car)
+                                    #RACE POINTS
+                                    # TODO point değişebilir
                                     if index == 0:
                                         point = 10
                                     elif index == 1:
@@ -521,7 +554,10 @@ def main(genomes, config):
                                         point = 2
                                     ge[i].fitness += point
 
+                        #CAR ROTATION
                         output = nets[i].activate(car.get_ray_distances())
+                        #TODO
+                        print(adjusted_current_time)
                         if output[0] > 0.5:
                             car.rotate_all(4)
                         elif output[1] > 0.5:
@@ -544,6 +580,7 @@ def main(genomes, config):
                 program = False
                 break
 
+            #CAMERA POSITIONS
             if camera_on:
                 x_sum = 0
                 y_sum = 0
@@ -591,14 +628,19 @@ def main(genomes, config):
 
 
 def run(config_path):
+    #CONFIGURATION
     config = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction,
                                 neat.DefaultSpeciesSet, neat.DefaultStagnation,
                                 config_path)
 
+    #INITIALIZATION
     p = neat.Population(config)
     p.add_reporter(neat.StdOutReporter(True))
     stats = neat.StatisticsReporter()
     p.add_reporter(stats)
+
+    #RUN with FUNCTION main
+    #Genome list are passed to the fitness function main
     winner = p.run(main, 100)
 
 
